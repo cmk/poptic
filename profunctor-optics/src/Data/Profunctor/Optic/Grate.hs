@@ -6,25 +6,25 @@
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE TypeFamilies          #-}
 module Data.Profunctor.Optic.Grate  (
-    -- * Types
+    -- * Grate & Cxgrate
     Grate
   , Grate'
   , Cxgrate
   , Cxgrate'
-  , AGrate
-  , AGrate'
     -- * Constructors
   , grate
-  , kgrate
   , grateVl
   , kgrateVl
   , inverting
   , cloneGrate
     -- * Optics
+  , represented
   , distributed
+  , endomorphed
   , connected
-  , forwarded
   , continued
+  , continuedT
+  , calledCC
   , unlifted
     -- * Indexed optics
   , kclosed
@@ -36,14 +36,14 @@ module Data.Profunctor.Optic.Grate  (
     -- * Operators
   , coview
   , zipsWith
+  , kzipsWith
   , zipsWith3
   , zipsWith4 
   , toClosure
   , toEnvironment
-    -- * Carriers
-  , GrateRep(..)
     -- * Classes
   , Closed(..)
+  , Costrong(..)
 ) where
 
 import Control.Monad.Reader
@@ -51,11 +51,15 @@ import Control.Monad.Cont
 import Control.Monad.IO.Unlift
 import Data.Distributive
 import Data.Connection (Conn(..))
+import Data.Monoid (Endo(..))
 import Data.Profunctor.Closed
+import Data.Profunctor.Optic.Carrier
 import Data.Profunctor.Optic.Types
 import Data.Profunctor.Optic.Import
 import Data.Profunctor.Optic.Index
-import Data.Profunctor.Rep (unfirstCorep)
+import Data.Profunctor.Optic.Iso (tabulated)
+
+import qualified Data.Functor.Rep as F
 
 -- $setup
 -- >>> :set -XNoOverloadedStrings
@@ -65,6 +69,8 @@ import Data.Profunctor.Rep (unfirstCorep)
 -- >>> import Control.Exception
 -- >>> import Control.Monad.Reader
 -- >>> import Data.Connection.Int
+-- >>> import Data.List as L
+-- >>> import Data.Monoid (Endo(..))
 -- >>> :load Data.Profunctor.Optic
 
 ---------------------------------------------------------------------
@@ -94,7 +100,7 @@ import Data.Profunctor.Rep (unfirstCorep)
 --
 -- * @sabt ($ s) ≡ s@
 --
--- * @sabt (\k -> h (k . sabt)) ≡ sabt (\k -> h ($ k))@
+-- * @sabt (\k -> f (k . sabt)) ≡ sabt (\k -> f ($ k))@
 --
 -- More generally, a profunctor optic must be monoidal as a natural 
 -- transformation:
@@ -107,11 +113,6 @@ import Data.Profunctor.Rep (unfirstCorep)
 --
 grate :: (((s -> a) -> b) -> t) -> Grate s t a b
 grate sabt = dimap (flip ($)) sabt . closed
-
--- | TODO: Document
---
-kgrate :: (((s -> a) -> k -> b) -> t) -> Cxgrate k s t a b
-kgrate f = grate $ \sakb _ -> f sakb
 
 -- | Transform a Van Laarhoven grate into a profunctor grate.
 --
@@ -148,13 +149,28 @@ cloneGrate k = withGrate k grate
 -- Optics 
 ---------------------------------------------------------------------
 
--- | Access the contents of a distributive functor.
+-- | Obtain a 'Grate' from a 'F.Representable' functor.
+--
+represented :: F.Representable f => Grate (f a) (f b) a b
+represented = tabulated . closed
+{-# INLINE represented #-}
+
+-- | Obtain a 'Grate' from a distributive functor.
 --
 distributed :: Distributive f => Grate (f a) (f b) a b
 distributed = grate (`cotraverse` id)
 {-# INLINE distributed #-}
 
--- | Lift a Galois connection into a 'Grate'. 
+-- | Obtain a 'Grate' from an endomorphism. 
+--
+-- >>> flip appEndo 2 $ zipsWith endomorphed (+) (Endo (*3)) (Endo (*4))
+-- 14
+--
+endomorphed :: Grate' (Endo a) a
+endomorphed = dimap appEndo Endo . closed
+{-# INLINE endomorphed #-}
+
+-- | Obtain a 'Grate' from a Galois connection.
 --
 -- Useful for giving precise semantics to numerical computations.
 --
@@ -170,21 +186,35 @@ connected :: Conn s a -> Grate' s a
 connected (Conn f g) = inverting f g
 {-# INLINE connected #-}
 
--- | Lift an action into a 'MonadReader'.
---
-forwarded :: Distributive m => MonadReader r m => Grate (m a) (m b) a b
-forwarded = distributed
-{-# INLINE forwarded #-}
-
--- | Lift an action into a continuation.
+-- | Obtain a 'Grate' from a continuation.
 --
 -- @
--- 'zipsWith' 'continued' :: (r -> r -> r) -> s -> s -> Cont r s
+-- 'zipsWith' 'continued' :: (r -> r -> r) -> s -> s -> 'Cont' r s
 -- @
 --
 continued :: Grate a (Cont r a) r r
 continued = grate cont
 {-# INLINE continued #-}
+
+-- | Obtain a 'Grate' from a continuation.
+--
+-- @
+-- 'zipsWith' 'continued' :: (m r -> m r -> m r) -> s -> s -> 'ContT' r m s 
+-- @
+--
+continuedT :: Grate a (ContT r m a) (m r) (m r)
+continuedT = grate ContT
+{-# INLINE continuedT #-}
+
+-- | Lift the current continuation into the calling context.
+--
+-- @
+-- 'zipsWith' 'calledCC' :: 'MonadCont' m => (m b -> m b -> m s) -> s -> s -> m s
+-- @
+--
+calledCC :: MonadCont m => Grate a (m a) (m b) (m a)
+calledCC = grate callCC
+{-# INLINE calledCC #-}
 
 -- | Unlift an action into an 'IO' context.
 --
@@ -227,12 +257,6 @@ ksecond = rmap (unsecond . uncurry) . curry' . lmap swap
 -- Primitive operators
 ---------------------------------------------------------------------
 
--- | Extract the function that characterizes a 'Grate'.
---
-withGrate :: AGrate s t a b -> ((((s -> a) -> b) -> t) -> r) -> r
-withGrate o sabtr = case o (GrateRep $ \f -> f id) of GrateRep sabt -> sabtr sabt
-{-# INLINE withGrate #-}
-
 -- | Extract the higher order function that characterizes a 'Grate'.
 --
 -- The grate laws can be stated in terms or 'withGrate':
@@ -273,6 +297,10 @@ zipsWith :: AGrate s t a b -> (a -> a -> b) -> s -> s -> t
 zipsWith o aab s1 s2 = withGrate o $ \sabt -> sabt $ \get -> aab (get s1) (get s2)
 {-# INLINE zipsWith #-}
 
+kzipsWith :: Monoid k => ACxgrate k s t a b -> (k -> a -> a -> b) -> s -> s -> t
+kzipsWith o kaab s1 s2 = withCxgrate o $ \sakbt -> sakbt $ \sa k -> kaab k (sa s1) (sa s2)
+{-# INLINE kzipsWith #-}
+
 -- | Zip over a 'Grate' with 3 arguments.
 --
 zipsWith3 :: AGrate s t a b -> (a -> a -> a -> b) -> (s -> s -> s -> t)
@@ -296,32 +324,3 @@ toClosure o p = withGrate o $ \sabt -> Closure (closed . grate sabt $ p)
 toEnvironment :: Closed p => AGrate s t a b -> p a b -> Environment p s t
 toEnvironment o p = withGrate o $ \sabt -> Environment sabt p (curry eval)
 {-# INLINE toEnvironment #-}
-
----------------------------------------------------------------------
--- Carriers
----------------------------------------------------------------------
-
--- | The 'GrateRep' profunctor precisely characterizes 'Grate'.
---
-newtype GrateRep a b s t = GrateRep { unGrateRep :: ((s -> a) -> b) -> t }
-
-type AGrate s t a b = Optic (GrateRep a b) s t a b
-
-type AGrate' s a = AGrate s s a a
-
-instance Profunctor (GrateRep a b) where
-  dimap f g (GrateRep z) = GrateRep $ \d -> g (z $ \k -> d (k . f))
-
-instance Closed (GrateRep a b) where
-  closed (GrateRep sabt) = GrateRep $ \xsab x -> sabt $ \sa -> xsab $ \xs -> sa (xs x)
-
-instance Costrong (GrateRep a b) where
-  unfirst = unfirstCorep
-
-instance Cosieve (GrateRep a b) (Coindex a b) where
-  cosieve (GrateRep f) (Coindex g) = f g
-
-instance Corepresentable (GrateRep a b) where
-  type Corep (GrateRep a b) = Coindex a b
-
-  cotabulate f = GrateRep $ f . Coindex

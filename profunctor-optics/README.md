@@ -57,19 +57,19 @@ Finally there are several additional namespaces containing domain-specific optic
 
 There is lattice of entailment relations between the various families of optic. Each node in the lattice corresponds to a conjunction of type class constraints on a function of the type `p a b -> p s t` (for general optics), `p (i , a) b -> p (i , s) t` (for indexed optics), or `p a (k -> b) -> p s (k -> t)` (for coindexed optics).
 
-For example, in the middle of hierarchy is `Traversal0` (also known as an 'affine' traversal):
+For example, in the middle of hierarchy is `Affine` (also known as an 'affine' traversal):
 
 ```
-type Traversal0 s t a b = forall p. Strong p => Choice p => Optic p s t a b 
+type Affine s t a b = forall p. Strong p => Choice p => Optic p s t a b 
 ```
 
-`Traversal0`s relate to structures containing aspects of both sum and product types ([These](https://hackage.haskell.org/package/these-1.0.1/docs/Data-These.html#t:These) is a basic example). The indexed variant is particularly useful in concert with indexed containers:
+`Affine`s relate to structures containing aspects of both sum and product types ([These](https://hackage.haskell.org/package/these-1.0.1/docs/Data-These.html#t:These) is a basic example). The indexed variant is particularly useful in concert with indexed containers:
 
 ```
-inserted Map.lookupGT Map.insert :: Ord i => i -> Ixtraversal0' i (Map i a) a
+inserted Map.lookupGT Map.insert :: Ord i => i -> Ixaffine' i (Map i a) a
 ```
 
-Imposing two additional constraints on a `Traversal0` (using the `Representable` typeclass from `profunctors`) gives us the familiar `Traversal`:
+Imposing two additional constraints on a `Affine` (using the `Representable` typeclass from `profunctors`) gives us the familiar `Traversal`:
 
 ```
 type Traversal s t a b = forall p. Strong p => Choice p => Representable p => Applicative (Rep p) => Optic p s t a b 
@@ -111,8 +111,8 @@ cotraversal :: Distributive g => (g b -> s -> g a) -> (g b -> t) -> Cotraversal1
 fold_ :: Foldable f => (s -> f a) -> Fold s a
 prism :: (s -> t + a) -> (b -> t) -> Prism s t a b
 prism' :: (s -> Maybe a) -> (a -> s) -> Prism' s a
-traversal0 :: (s -> t + a) -> (s -> b -> t) -> Traversal0 s t a b
-traversal0' :: (s -> Maybe a) -> (s -> a -> s) -> Traversal0' s a
+affine :: (s -> t + a) -> (s -> b -> t) -> Affine s t a b
+affine' :: (s -> Maybe a) -> (s -> a -> s) -> Affine' s a
 ```
 
 The only exceptions to this rule are `View` and `Review` (whose basic constructors are `to` and `from`). This is to keep the names of oft-used functions in line with their counterparts in `lens`. Also worth noting is that the order of the arguments in `prism` agree with those in the `lens-family` [version](http://hackage.haskell.org/package/lens-family-2.0.0/docs/Lens-Family2-Unchecked.html#v:prism), rather than the `lens` version. This is to keep the argument ordering consistent amongst the expanded range of constructors.
@@ -126,10 +126,10 @@ folding1 :: Traversable1 f => (s -> a) -> Fold1 (f s) a
 cofolding1 :: Distributive f => (b -> t) -> Cofold1 (f t) b
 traversing :: Traversable f => (s -> a) -> (s -> b -> t) -> Traversal (f s) (f t) a b
 cotraversing1 :: Distributive g => (b -> s -> a) -> (b -> t) -> Cotraversal1 (g s) (g t) a b
-retraversing1 :: Distributive g => (((s -> a) -> b) -> t) -> Cotraversal1 (g s) (g t) a b
+cotraversing1 :: Distributive g => (((s -> a) -> b) -> t) -> Cotraversal1 (g s) (g t) a b
 ```
 
-In some cases there are additional constructors using an alternative present participle (e.g. `retraversing`, `matching`, `handling`, `fmapping`, `contramapping`, `failing`, etc). Other than the consistent use of the present participle these constructors mirror the ones in `lens`.
+In some cases there are additional constructors using an alternative present participle (e.g. `cotraversing`, `matching`, `handling`, `fmapping`, `contramapping`, `failing`, etc). Other than the consistent use of the present participle these constructors mirror the ones in `lens`.
 
 Constructors ending in `Vl` are reserved for translations from the [Van Laarhoven](https://www.twanvl.nl/blog/haskell/cps-functional-references) representation to the profunctor representation. For example:
 
@@ -153,7 +153,7 @@ The past participle is reserved for naming optics (e.g. `swapped`, `summed`, `tr
 united :: Lens' a ()
 voided :: Lens' Void a
 zipped :: Setter (u -> v -> a) (u -> v -> b) a b
-inserted :: (i -> s -> Maybe (i, a)) -> (i -> a -> s -> s) -> i -> Ixtraversal0' i s a
+inserted :: (i -> s -> Maybe (i, a)) -> (i -> a -> s -> s) -> i -> Ixaffine' i s a
 ```
 
 Optics derived via direct applications of a constructor are named with the past participle of the constructor. For example
@@ -196,14 +196,14 @@ zipWithOf :: AGrate s t a b -> (a -> a -> b) -> s -> s -> t
 withGrate :: AGrate s t a b -> ((((s -> a) -> b) -> t) -> r) -> r
 withTraversal :: Applicative f => ATraversal f s t a b -> (a -> f b) -> s -> f t
 cowithFold1 :: ACofold1 r t b -> (r -> b) -> r -> t
-withIxfold0 :: AIxfold0 r i s a -> (i -> a -> Maybe r) -> i -> s -> Maybe r
+withIxoption :: AIxoption r i s a -> (i -> a -> Maybe r) -> i -> s -> Maybe r
 ```
 
 Secondary operators are derived from applications of primary operators and are generally named using the (first or third-person) simple present tense. For example:
 
 ```
-is :: ATraversal0 s t a b -> s -> Bool
-match :: ATraversal0 s t a b -> s -> t + a
+is :: AAffine s t a b -> s -> Bool
+match :: AAffine s t a b -> s -> t + a
 use :: MonadState s m => AView s a -> m a
 set :: ASetter s t a b -> b -> s -> t
 reset :: AResetter s t a b -> b -> s -> t

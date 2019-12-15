@@ -29,12 +29,19 @@ module Data.Profunctor.Optic.Iso (
   , wrapped
   , rewrapped
   , rewrapped'
+  , generic
+  , generic1
+  , adjuncted
+  , tabulated
+  , transposed
   , flipped 
   , curried
+  , unzipped
+  , cozipped
   , swapped 
-  , eswapped 
+  , coswapped 
   , associated 
-  , eassociated 
+  , coassociated
   , involuted 
   , added 
   , subtracted
@@ -42,6 +49,7 @@ module Data.Profunctor.Optic.Iso (
   , anon
     -- * Primitive operators
   , withIso
+    -- * Operators
   , invert
   , reover
   , reixed
@@ -52,21 +60,23 @@ module Data.Profunctor.Optic.Iso (
   , ala
     -- * Auxilliary Types
   , Re(..)
-    -- * Carriers
-  , AIso 
-  , AIso'
-  , IsoRep(..)
 ) where
 
 import Control.Newtype.Generics (Newtype(..), op)
 import Data.Coerce
+import Data.Functor.Adjunction hiding (adjuncted)
 import Data.Group
 import Data.Maybe (fromMaybe)
+import Data.Profunctor.Optic.Carrier
 import Data.Profunctor.Optic.Import
 import Data.Profunctor.Optic.Index
 import Data.Profunctor.Optic.Types
 import Data.Profunctor.Yoneda (Coyoneda(..), Yoneda(..))
+
+
+import qualified Data.Functor.Rep as F
 import qualified Control.Monad as M (join)
+import qualified GHC.Generics as G
 
 -- $setup
 -- >>> :set -XNoOverloadedStrings
@@ -140,17 +150,13 @@ kmapping :: Profunctor p => AIso s t a b -> CoindexedOptic p k s t a b
 kmapping o = withIso o kmap
 {-# INLINE kmapping #-}
 
--- | TODO: Document
+-- | Lift an 'Iso' into a pair of functors.
 --
-fmapping
-  :: Functor f
-  => Functor g
-  => AIso s t a b
-  -> Iso (f s) (g t) (f a) (g b)
+fmapping :: Functor f => Functor g => AIso s t a b -> Iso (f s) (g t) (f a) (g b)
 fmapping l = withIso l $ \sa bt -> iso (fmap sa) (fmap bt)
 {-# INLINE fmapping #-}
 
--- | Lift an 'Iso' into a 'Contravariant' functor.
+-- | Lift an 'Iso' into a pair of 'Contravariant' functors.
 --
 -- @
 -- contramapping :: 'Contravariant' f => 'Iso' s t a b -> 'Iso' (f a) (f b) (f s) (f t)
@@ -160,16 +166,12 @@ contramapping :: Contravariant f => Contravariant g => AIso s t a b -> Iso (f a)
 contramapping f = withIso f $ \sa bt -> iso (contramap sa) (contramap bt)
 {-# INLINE contramapping #-}
 
--- | TODO: Document
+-- | Lift a pair of 'Iso's into a pair of profunctors. 
 --
-dimapping
-  :: Profunctor p
-  => Profunctor q
-  => AIso s1 t1 a1 b1
-  -> AIso s2 t2 a2 b2
-  -> Iso (p a1 s2) (q b1 t2) (p s1 a2) (q t1 b2)
-dimapping f g = withIso f $ \sa1 bt1 -> 
-  withIso g $ \sa2 bt2 -> iso (dimap sa1 sa2) (dimap bt1 bt2)
+--
+--
+dimapping :: Profunctor p => Profunctor q => AIso s1 t1 a1 b1 -> AIso s2 t2 a2 b2 -> Iso (p a1 s2) (q b1 t2) (p s1 a2) (q t1 b2)
+dimapping f g = withIso f $ \sa1 bt1 -> withIso g $ \sa2 bt2 -> iso (dimap sa1 sa2) (dimap bt1 bt2)
 {-# INLINE dimapping #-}
 
 -- | Lift an 'Iso' into a 'Yoneda'.
@@ -194,7 +196,7 @@ cloneIso k = withIso k iso
 -- Optics
 ---------------------------------------------------------------------
 
--- | Capture type constraints as an 'Iso''.
+-- | Obtain an 'Iso'' directly from type equality constraints.
 --
 -- >>> :t (^. equaled)
 -- (^. equaled) :: b -> b
@@ -203,7 +205,7 @@ equaled :: s ~ a => t ~ b => Iso s t a b
 equaled = id
 {-# INLINE equaled #-}
 
--- | Data types that are representationally equal.
+-- | Obtain an 'Iso' from data types that are representationally equal.
 --
 -- >>> view coerced 'x' :: Identity Char
 -- Identity 'x'
@@ -212,7 +214,7 @@ coerced :: Coercible s a => Coercible t b => Iso s t a b
 coerced = dimap coerce coerce
 {-# INLINE coerced #-}
 
--- | Work under a newtype wrapper.
+-- | Obtain an 'Iso' from a newtype.
 --
 -- @
 -- 'Data.Profunctor.Optic.View.view' 'wrapped' f '.' f ≡ 'id'
@@ -244,6 +246,45 @@ rewrapped' :: Newtype s => Newtype t => (O s -> s) -> Iso s t (O s) (O t)
 rewrapped' _ = rewrapped
 {-# INLINE rewrapped' #-}
 
+-- | Obtain an 'Iso' from a 'Generic' representation.
+--
+-- >>> view (generic . re generic) "hello" :: String
+-- "hello"
+--
+generic :: G.Generic a => G.Generic b => Iso a b (G.Rep a c) (G.Rep b c)
+generic = iso G.from G.to
+{-# INLINE generic #-}
+
+-- | Obtain an 'Iso' from a 'Generic1' representation.
+--
+generic1 :: G.Generic1 f => G.Generic1 g => Iso (f a) (g b) (G.Rep1 f a) (G.Rep1 g b)
+generic1 = iso G.from1 G.to1
+{-# INLINE generic1 #-}
+
+-- | Obtain an 'Iso' from a functor and its adjoint.
+--
+-- Useful for converting between lens-like optics and grate-like optics:
+--
+-- @
+-- 'Data.Profunctor.Optic.Setter.over' 'adjuncted' :: 'Adjunction' f u => ((a -> u b) -> s -> u t) -> (f a -> b) -> f s -> t
+-- @
+--
+adjuncted :: Adjunction f u => Iso (f a -> b) (f s -> t) (a -> u b) (s -> u t)
+adjuncted = iso leftAdjunct rightAdjunct
+{-# INLINE adjuncted #-}
+
+-- | Obtain an 'Iso' from a functor and its function representation.
+--
+tabulated :: F.Representable f => F.Representable g => Iso (f a) (g b) (F.Rep f -> a) (F.Rep g -> b)
+tabulated = iso F.index F.tabulate
+{-# INLINE tabulated #-}
+
+-- | TODO: Document
+--
+transposed :: Functor f => Distributive g => Iso (f (g a)) (g (f a)) (g (f a)) (f (g a))
+transposed = involuted distribute
+{-# INLINE transposed #-}
+
 -- | Flip two arguments of a function.
 --
 -- >>> (view flipped (,)) 1 2
@@ -253,29 +294,38 @@ flipped :: Iso (a -> b -> c) (d -> e -> f) (b -> a -> c) (e -> d -> f)
 flipped = iso flip flip
 {-# INLINE flipped #-}
 
--- | TODO: Document
+-- | Curry a function.
 --
--- >>> (fst ^. curried) 3 4
+-- >>> (fst ^. invert curried) 3 4
 -- 3
 --
--- >>> view curried fst 3 4
--- 3
---
-curried :: Iso ((a , b) -> c) ((d , e) -> f) (a -> b -> c) (d -> e -> f)
-curried = iso curry uncurry
+curried :: Iso (a -> b -> c) (d -> e -> f) ((a , b) -> c) ((d , e) -> f)
+curried = iso uncurry curry
 {-# INLINE curried #-}
 
--- | TODO: Document
+-- | A right adjoint admits an intrinsic notion of zipping.
+--
+unzipped :: Adjunction f u => Iso (u a , u b) (u c , u d) (u (a , b)) (u (c , d)) 
+unzipped = iso zipR unzipR
+{-# INLINE unzipped #-}
+
+-- | A left adjoint must be inhabited by exactly one element.
+--
+cozipped :: Adjunction f u => Iso ((f a) + (f b)) ((f c) + (f d)) (f (a + b)) (f (c + d))
+cozipped = iso uncozipL cozipL
+{-# INLINE cozipped #-}
+
+-- | Swap sides of a product.
 --
 swapped :: Iso (a , b) (c , d) (b , a) (d , c)
 swapped = iso swap swap
 {-# INLINE swapped #-}
 
--- | TODO: Document
+-- | Swap sides of a sum.
 --
-eswapped :: Iso (a + b) (c + d) (b + a) (d + c)
-eswapped = iso eswap eswap
-{-# INLINE eswapped #-}
+coswapped :: Iso (a + b) (c + d) (b + a) (d + c)
+coswapped = iso eswap eswap
+{-# INLINE coswapped #-}
 
 -- | 'Iso' defined by left-association of nested tuples.
 --
@@ -285,9 +335,9 @@ associated = iso assocl assocr
 
 -- | 'Iso' defined by left-association of nested tuples.
 --
-eassociated :: Iso (a + (b + c)) (d + (e + f)) ((a + b) + c) ((d + e) + f)
-eassociated = iso eassocl eassocr
-{-# INLINE eassociated #-}
+coassociated :: Iso (a + (b + c)) (d + (e + f)) ((a + b) + c) ((d + e) + f)
+coassociated = iso eassocl eassocr
+{-# INLINE coassociated #-}
 
 -- | Obtain an 'Iso' from a function that is its own inverse.
 --
@@ -353,11 +403,11 @@ anon a p = iso (fromMaybe a) go where
 -- Primitive operators
 ---------------------------------------------------------------------
 
--- | Extract the two functions that characterize an 'Iso'.
---
-withIso :: AIso s t a b -> ((s -> a) -> (b -> t) -> r) -> r
-withIso x k = case x (IsoRep id id) of IsoRep sa bt -> k sa bt
-{-# INLINE withIso #-}
+--withIsoVl
+
+---------------------------------------------------------------------
+-- Operators
+---------------------------------------------------------------------
 
 -- | Invert an isomorphism.
 --
@@ -369,13 +419,13 @@ invert :: AIso s t a b -> Iso b a t s
 invert o = withIso o $ \sa bt -> iso bt sa
 {-# INLINE invert #-}
 
--- | Given a conversion on one side of an 'Iso', reover the other.
+-- | Given a conversion on one side of an 'Iso', recover the other.
 --
 -- @
 -- 'reover' ≡ 'over' '.' 're'
 -- @
 --
--- Compare 'Data.Profunctor.Optic.Setter.reover'.
+-- Compare 'Data.Profunctor.Optic.Setter.over'.
 --
 reover :: AIso s t a b -> (t -> s) -> b -> a
 reover o = withIso o $ \sa bt ts -> sa . ts . bt
@@ -422,7 +472,7 @@ aup o = withIso o $ \sa bt f g -> fmap bt (f (rmap sa g))
 
 -- | This combinator is based on @ala@ from Conor McBride's work on Epigram.
 --
--- As with '_Wrapping', the user supplied function for the newtype is /ignored/.
+-- As with 'rewrapped'', the user supplied function for the newtype is /ignored/.
 --
 -- >>> ala Sum foldMap [1,2,3,4]
 -- 10
@@ -449,34 +499,3 @@ aup o = withIso o $ \sa bt f g -> fmap bt (f (rmap sa g))
 ala :: Newtype s => Newtype t => Functor f => (O s -> s) -> ((O t -> t) -> f s) -> f (O s) 
 ala = au . rewrapped'
 {-# INLINE ala #-}
-
----------------------------------------------------------------------
--- Carriers
----------------------------------------------------------------------
-
--- | The 'IsoRep' profunctor precisely characterizes an 'Iso'.
-data IsoRep a b s t = IsoRep (s -> a) (b -> t)
-
--- | When you see this as an argument to a function, it expects an 'Iso'.
-type AIso s t a b = Optic (IsoRep a b) s t a b
-
-type AIso' s a = AIso s s a a
-
-instance Functor (IsoRep a b s) where
-  fmap f (IsoRep sa bt) = IsoRep sa (f . bt)
-  {-# INLINE fmap #-}
-
-instance Profunctor (IsoRep a b) where
-  dimap f g (IsoRep sa bt) = IsoRep (sa . f) (g . bt)
-  {-# INLINE dimap #-}
-  lmap f (IsoRep sa bt) = IsoRep (sa . f) bt
-  {-# INLINE lmap #-}
-  rmap f (IsoRep sa bt) = IsoRep sa (f . bt)
-  {-# INLINE rmap #-}
-
-instance Sieve (IsoRep a b) (Index a b) where
-  sieve (IsoRep sa bt) s = Index (sa s) bt
-
-instance Cosieve (IsoRep a b) (Coindex a b) where
-  cosieve (IsoRep sa bt) (Coindex sab) = bt (sab sa)
-
