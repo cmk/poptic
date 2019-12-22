@@ -38,6 +38,7 @@ module Data.Profunctor.Optic.Types (
   , Fold, Ixfold , Fold1, Ixfold1
     -- * Cotraversal
   , Cotraversal  , Cotraversal'
+  , List, List', List1, List1', Scope, Scope', Scope1, Scope1'
     -- * View & Review
   , PrimView, View, Ixview, PrimReview, Review, Cxview
     -- * Setter & Resetter
@@ -241,6 +242,25 @@ type Ixfold i s a = forall p. (Choice p, Representable p, Applicative (Rep p), f
 type Cotraversal s t a b = forall p. (Choice p, Closed p, Coapplicative (Corep p), Corepresentable p) => Optic p s t a b
 
 type Cotraversal' t b = Cotraversal t t b b
+
+-- aka list-lens
+type List s t a b = forall p. (Closed p, Foldable (Corep p), Corepresentable p) => Optic p s t a b
+
+type List' s a = List s s a a
+
+type List1 s t a b = forall p. (Closed p, Foldable1 (Corep p), Corepresentable p) => Optic p s t a b
+
+type List1' s a = List1 s s a a
+
+-- aka kaleidoscope
+-- | \( \quad \mathsf{Scope}\;S\;A = \exists n : \mathbb{N}, S \cong \mathsf{Fin}\,n \to A \)
+type Scope s t a b = forall p. (Closed p, Traversable (Corep p), Corepresentable p) => Optic p s t a b
+
+type Scope' s a = Scope s s a a
+
+type Scope1 s t a b = forall p. (Closed p, Traversable1 (Corep p), Corepresentable p) => Optic p s t a b
+
+type Scope1' s a = Scope1 s s a a
 
 ---------------------------------------------------------------------
 -- View & Review
