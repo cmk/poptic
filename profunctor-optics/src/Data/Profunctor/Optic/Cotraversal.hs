@@ -12,15 +12,8 @@ module Data.Profunctor.Optic.Cotraversal (
   , cotraversing
   , retraversing
   , cotraversalVl
-    -- * List & List1
-  , list
-  , list1
     -- * Optics
   , cotraversed
-  , scoped
-  , scoped1
-  , padded
-  , partitioned
     -- * Operators
   , (/~)
   , (//~)
@@ -60,10 +53,8 @@ import Data.List.NonEmpty as L1
 -- >>> import Data.Maybe
 -- >>> import Data.Int.Instance ()
 -- >>> import Data.List.NonEmpty (NonEmpty(..))
--- >>> import qualified Data.List.NonEmpty as NE
 -- >>> import Data.Functor.Identity
 -- >>> import Data.List.Index
--- >>> import Data.List as L
 -- >>> :load Data.Profunctor.Optic
 -- >>> let catchOn :: Int -> Cxprism' Int (Maybe String) String ; catchOn n = kjust $ \k -> if k==n then Just "caught" else Nothing
 
@@ -112,22 +103,6 @@ cotraversalVl :: (forall f. Coapplicative f => (f a -> b) -> f s -> t) -> Cotrav
 cotraversalVl abst = cotabulate . abst . cosieve 
 
 ---------------------------------------------------------------------
--- 'List' & 'List1'
----------------------------------------------------------------------
-
--- | Obtain a 'List' directly.
---
-list :: (s -> a) -> ([s] -> b -> t) -> List s t a b
-list sa sbt p = cotabulate $ \s -> sbt (F.toList s) (cosieve p . fmap sa $ s)
-{-# INLINE list #-}
-
--- | Obtain a 'List1' directly.
---
-list1 :: (s -> a) -> (NonEmpty s -> b -> t) -> List1 s t a b
-list1 sa sbt p = cotabulate $ \s -> sbt (F1.toNonEmpty s) (cosieve p . fmap sa $ s)
-{-# INLINE list1 #-}
-
----------------------------------------------------------------------
 -- Optics
 ---------------------------------------------------------------------
 
@@ -136,39 +111,6 @@ list1 sa sbt p = cotabulate $ \s -> sbt (F1.toNonEmpty s) (cosieve p . fmap sa $
 cotraversed :: Distributive f => Cotraversal (f a) (f b) a b 
 cotraversed = cotraversalVl cotraverse
 {-# INLINE cotraversed #-}
-
--- | TODO: Document
---
-scoped :: Applicative f => Scope (f a) (f b) a b
-scoped p = cotabulate $ fmap (cosieve p) . sequenceA
-{-# INLINE scoped #-}
-
--- | TODO: Document
---
-scoped1 :: Apply f => Scope1 (f a) (f b) a b
-scoped1 p = cotabulate $ fmap (cosieve p) . sequence1
-{-# INLINE scoped1 #-}
-
--- | TODO: Document
---
--- >>> ["foo", "foobar"] & padded 'x' /~ 8
--- ["fooxxxxx","foobarxx"]
---
--- >>> ["foo", "foobar"] & padded 'x' /~ 4
--- ["foox","foob"]
---
--- >>> ["foo", "foobar"] & padded 'x' //~ maximum
--- ["fooxxx","foobar"]
---
-padded :: a -> List [a] [[a]] Int Int
-padded x = list L.length $ \xs n -> fmap (\s -> L.take n $ s <> L.repeat x) xs
-{-# INLINE padded #-}
-
--- | TODO: Document
---
-partitioned :: (a -> a -> Bool) -> List a ([a],[a]) a a
-partitioned f = list id $ \xs ref -> (L.filter (\x -> False == f ref x) (F.toList xs), L.filter (\x -> True == f ref x) (F.toList xs))
-{-# INLINE partitioned #-}
 
 ---------------------------------------------------------------------
 -- Operators

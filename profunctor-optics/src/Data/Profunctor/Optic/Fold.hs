@@ -79,6 +79,7 @@ module Data.Profunctor.Optic.Fold (
 
 import Control.Monad (void)
 import Control.Monad.Reader as Reader hiding (lift)
+import Data.Bifunctor (Bifunctor(..))
 import Data.Bool.Instance () -- Semigroup / Monoid / Semiring instances
 import Data.Foldable (Foldable, foldMap, traverse_)
 import Data.Monoid hiding (All(..), Any(..))

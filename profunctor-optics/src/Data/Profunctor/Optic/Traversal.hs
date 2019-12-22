@@ -39,10 +39,11 @@ module Data.Profunctor.Optic.Traversal (
   , iterated
   , cycled
     -- * Operators
-  , (*~)
-  , (**~)
   , withTraversal
   , withTraversal1
+    -- * Operators
+  , (*~)
+  , (**~)
   , sequences
   , sequences1
 ) where
@@ -377,7 +378,7 @@ cycled o = repn $ \g a -> go g a where go g a = (withTraversal1 o g) a .> go g a
 {-# INLINE cycled #-}
 
 ---------------------------------------------------------------------
--- Operators
+-- Primitive operators
 ---------------------------------------------------------------------
 
 -- | 
@@ -408,6 +409,10 @@ withTraversal = withStar
 withTraversal1 :: Apply f => ATraversal1 f s t a b -> (a -> f b) -> s -> f t
 withTraversal1 = withStar
 {-# INLINE withTraversal1 #-}
+
+---------------------------------------------------------------------
+-- Operators
+---------------------------------------------------------------------
 
 -- | TODO: Document
 --

@@ -7,8 +7,7 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE DeriveGeneric         #-}
-module Data.Profunctor.Optic.Index where
-{- ( 
+module Data.Profunctor.Optic.Index ( 
     -- * Indexing
     (%)
   , iinit
@@ -40,8 +39,9 @@ module Data.Profunctor.Optic.Index where
   , noindex
   , coindex
   , (.#.)
+    -- * Coindex
+  , Conjoin(..)
 ) where
--}
 
 import Control.Arrow as Arrow
 import Control.Category (Category)

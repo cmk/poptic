@@ -1,12 +1,12 @@
 cabal-version: >= 1.10
 
 name:           profunctor-optics
-version:        0.0.0.3
+version:        0.0.0.2
 synopsis:       An optics library compatible with the typeclasses in 'profunctors'.
 description:  
   This package provides utilities for creating and manipulating profunctor-based optics. Some highlights:
   .
-  Full complement of isos, prisms, lenses, grates, affines, traversals, cotraversals, list-lenses, kaleidoscopes, views, setters, folds, and more.
+  Full complement of isos, prisms, lenses, grates, affines, traversals, cotraversals, views, setters, folds, and more.
   .
   Composable indexed or co-indexed variants of most of the above.
   .
@@ -63,8 +63,8 @@ library
       Data.Profunctor.Optic.Traversal
       Data.Profunctor.Optic.Fold
       Data.Profunctor.Optic.Cotraversal
-      Data.Profunctor.Optic.View
       Data.Profunctor.Optic.Setter
+      Data.Profunctor.Optic.View
       Data.Profunctor.Optic.Zoom
 
       Data.Profunctor.Optic.Prelude

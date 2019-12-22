@@ -61,6 +61,8 @@ import Data.Profunctor.Optic.Iso (tabulated)
 
 import qualified Data.Functor.Rep as F
 
+import qualified Data.Functor.Rep as F
+
 -- $setup
 -- >>> :set -XNoOverloadedStrings
 -- >>> :set -XTypeApplications

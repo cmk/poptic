@@ -36,9 +36,8 @@ module Data.Profunctor.Optic.Types (
   , Traversal    , Traversal'   , Ixtraversal , Ixtraversal'
   , Traversal1   , Traversal1'  , Ixtraversal1, Ixtraversal1'
   , Fold, Ixfold , Fold1, Ixfold1
-    -- * Cotraversal, List, List1, Scope, & Scope1
+    -- * Cotraversal
   , Cotraversal  , Cotraversal'
-  , List, List', List1, List1', Scope, Scope', Scope1, Scope1'
     -- * View & Review
   , PrimView, View, Ixview, PrimReview, Review, Cxview
     -- * Setter & Resetter
@@ -155,6 +154,10 @@ type Cxlens k s t a b = forall p. Costrong p => CoindexedOptic p k s t a b
 
 type Cxlens' k s a = Cxlens k s s a a
 
+type Cotraversal0 s t a b = forall p. (Choice p, Closed p) => Optic p s t a b
+
+type Cotraversal0' t b = Cotraversal0 t t b b
+
 ---------------------------------------------------------------------
 -- Affine & Option
 ---------------------------------------------------------------------
@@ -215,6 +218,8 @@ type Ixtraversal1 i s t a b = forall p. (Strong p, Representable p, Apply (Rep p
 
 type Ixtraversal1' i s a = Ixtraversal1 i s s a a
 
+type Cofold0 t b = forall p. (Choice p, Closed p, Strong p, forall x. Contravariant (p x)) => Optic' p t b 
+
 -- | A 'Fold1' combines 1 or more elements, with 'Semigroup' interactions.
 --
 type Fold1 s a = forall p. (Strong p, Representable p, Apply (Rep p), forall x. Contravariant (p x)) => Optic' p s a 
@@ -230,31 +235,12 @@ type Ixfold i s a = forall p. (Choice p, Representable p, Applicative (Rep p), f
 -- type Cofold t b = forall p. (Closed p, Corepresentable p, Coapplicative (Corep p), Bifunctor p) => Optic' p t b
 
 ---------------------------------------------------------------------
--- Cotraversal, List, List1, Scope, & Scope1
+-- Cotraversal
 ---------------------------------------------------------------------
 
 type Cotraversal s t a b = forall p. (Choice p, Closed p, Coapplicative (Corep p), Corepresentable p) => Optic p s t a b
 
 type Cotraversal' t b = Cotraversal t t b b
-
--- aka list-lens
-type List s t a b = forall p. (Closed p, Foldable (Corep p), Corepresentable p) => Optic p s t a b
-
-type List' s a = List s s a a
-
-type List1 s t a b = forall p. (Closed p, Foldable1 (Corep p), Corepresentable p) => Optic p s t a b
-
-type List1' s a = List1 s s a a
-
--- aka kaleidoscope
--- | \( \quad \mathsf{Scope}\;S\;A = \exists n : \mathbb{N}, S \cong \mathsf{Fin}\,n \to A \)
-type Scope s t a b = forall p. (Closed p, Traversable (Corep p), Corepresentable p) => Optic p s t a b
-
-type Scope' s a = Scope s s a a
-
-type Scope1 s t a b = forall p. (Closed p, Traversable1 (Corep p), Corepresentable p) => Optic p s t a b
-
-type Scope1' s a = Scope1 s s a a
 
 ---------------------------------------------------------------------
 -- View & Review
