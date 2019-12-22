@@ -19,6 +19,7 @@ module Data.Profunctor.Optic.Cotraversal (
   , cotraversed
   , scoped
   , scoped1
+  , pointwise
   , padded
   , partitioned
     -- * Operators
@@ -62,10 +63,20 @@ import Data.List.NonEmpty as L1
 -- >>> import Data.List.NonEmpty (NonEmpty(..))
 -- >>> import qualified Data.List.NonEmpty as NE
 -- >>> import Data.Functor.Identity
+-- >>> import Data.Foldable
 -- >>> import Data.List.Index
 -- >>> import Data.List as L
+-- >>> import Data.Ord
 -- >>> :load Data.Profunctor.Optic
--- >>> let catchOn :: Int -> Cxprism' Int (Maybe String) String ; catchOn n = kjust $ \k -> if k==n then Just "caught" else Nothing
+-- >>> data Species = Setosa | Versicolor | Virginica deriving (Eq, Show)
+-- >>> type Features = [Float]
+-- >>> data Flower = Flower { flowerSpecies :: Species, flowerFeatures :: Features} deriving (Eq, Show)
+-- >>> euclidean :: Features -> Features -> Float ; euclidean xs ys = sqrt . sum $ L.zipWith diff xs ys where diff a b = (a - b) ** 2
+-- >>> classify :: Foldable f => f Flower -> Features -> Flower ; classify dset feats = flip Flower feats $ flowerSpecies $ minimumBy (comparing (euclidean feats . flowerFeatures)) dset
+-- >>> let features :: List' Flower Features ; features = list flowerFeatures classify
+-- >>> let flower1 = Flower Versicolor [2, 3, 4, 2]
+-- >>> let flower2 = Flower Setosa [5, 4, 3, 2.5]
+-- >>> let dataset :: NonEmpty Flower ; dataset = flower1 :| [flower2]
 
 ---------------------------------------------------------------------
 -- 'Cotraversal'
@@ -117,6 +128,15 @@ cotraversalVl abst = cotabulate . abst . cosieve
 
 -- | Obtain a 'List' directly.
 --
+-- >>> flower1 & features . fmapped ..~ negate
+-- Flower {flowerSpecies = Versicolor, flowerFeatures = [-2.0,-3.0,-4.0,-2.0]}
+--
+-- >>> dataset & features . pointwise //~ maximum
+-- Flower {flowerSpecies = Setosa, flowerFeatures = [5.0,4.0,4.0,2.5]}
+-- 
+-- >>> dataset & features /~ [1.9, 3.2, 3.8, 2]
+-- Flower {flowerSpecies = Versicolor, flowerFeatures = [1.9,3.2,3.8,2.0]}
+-- 
 list :: (s -> a) -> ([s] -> b -> t) -> List s t a b
 list sa sbt p = cotabulate $ \s -> sbt (F.toList s) (cosieve p . fmap sa $ s)
 {-# INLINE list #-}
@@ -148,6 +168,14 @@ scoped p = cotabulate $ fmap (cosieve p) . sequenceA
 scoped1 :: Apply f => Scope1 (f a) (f b) a b
 scoped1 p = cotabulate $ fmap (cosieve p) . sequence1
 {-# INLINE scoped1 #-}
+
+-- | Variant of 'fmapped' that works over arbitrary Scopes.
+--
+-- Useful because lists are not 'Coapplicative'.
+--
+pointwise :: Scope [a] [b] a b
+pointwise = dimap ZipList getZipList . scoped
+{-# INLINE pointwise #-}
 
 -- | TODO: Document
 --
